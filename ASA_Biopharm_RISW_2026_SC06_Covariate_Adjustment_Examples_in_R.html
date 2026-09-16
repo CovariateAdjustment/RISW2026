@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 <meta name="author" content="Josh Betz1">
-<meta name="dcterms.date" content="2026-09-09">
+<meta name="dcterms.date" content="2026-09-16">
 
 <title>Improving Precision &amp; Power in Randomized Trials Using Covariate Adjustment</title>
 <style>
@@ -2608,7 +2608,7 @@ window.Quarto = {
     <div>
     <div class="quarto-title-meta-heading">Published</div>
     <div class="quarto-title-meta-contents">
-      <p class="date">September 9, 2026</p>
+      <p class="date">September 16, 2026</p>
     </div>
   </div>
   
@@ -4005,10 +4005,10 @@ Method: Doubly-Robust Weighted Least Squares
 Outcome Models: a quasibinomial GLM with a logit link
 Censoring Model: a binomial GLM using a logit link 
 
-                 Estimand  Estimate         SE       LCL       UCL         Z
-1 Odds[Y|A=1]/Odds[Y|A=0] 0.4396241 0.14147933 0.2154592 0.8605987 -3.960832
-2                E[Y|A=1] 0.1940108 0.03723797 0.1194484 0.2896573        NA
-3                E[Y|A=0] 0.3538128 0.04382252 0.2598334 0.4573013        NA
+                 Estimand  Estimate         SE       LCL       UCL        Z
+1 Odds[Y|A=1]/Odds[Y|A=0] 0.4396241 0.13941328 0.2157508 0.8544483 -4.01953
+2                E[Y|A=1] 0.1940108 0.03665870 0.1189380 0.2847232       NA
+3                E[Y|A=0] 0.3538128 0.04394461 0.2600795 0.4566709       NA
   p-value
 1      NA
 2      NA
@@ -5507,12 +5507,12 @@ Speff     -0.34916  0.11283  -0.57030  -0.12802  0.0019708</code></pre>
 <div class="cell-output cell-output-stdout">
 <pre><code>
            Confidence level: 95%
-          Mult. Bootstrap C: 2.255153 
+          Mult. Bootstrap C: 2.276457 
 
   horizon treatment control theta point-wise 95% CI  uniform 95% CI
 1      12     11.65   11.64  0.02   (-0.22 to 0.26) (-0.26 to 0.30)
-2      37     32.14   30.89  1.25   (-0.27 to 2.77) (-0.50 to 3.00)
-3      61     48.64   44.42  4.22    (1.14 to 7.30)  (0.67 to 7.76)</code></pre>
+2      37     32.14   30.89  1.25   (-0.27 to 2.77) (-0.51 to 3.02)
+3      61     48.64   44.42  4.22    (1.14 to 7.30)  (0.64 to 7.79)</code></pre>
 </div>
 <details open class="code-fold">
 <summary>Code</summary>
@@ -5532,11 +5532,11 @@ Speff     -0.34916  0.11283  -0.57030  -0.12802  0.0019708</code></pre>
 <div class="cell-output cell-output-stdout">
 <pre><code>
            Confidence level: 95%
-          Mult. Bootstrap C: 2.304203 
+          Mult. Bootstrap C: 2.318198 
 
   horizon treatment control theta point-wise 95% CI  uniform 95% CI
 1      12      0.92    0.91  0.01   (-0.03 to 0.06) (-0.04 to 0.06)
-2      37      0.74    0.62  0.12    (0.05 to 0.19)  (0.04 to 0.21)
+2      37      0.74    0.62  0.12    (0.05 to 0.19)  (0.03 to 0.21)
 3      61      0.63    0.53  0.10    (0.02 to 0.18)  (0.01 to 0.19)</code></pre>
 </div>
 </div>

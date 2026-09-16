@@ -12,15 +12,17 @@ Improving Power and Precision in Randomized Trials Using Covariate
 Adjustment](https://ww2.amstat.org/meetings/risw/2026/shortcourses.cfm)
 
 - [1. Overview on Covariate
-  Adjustment](https://github.com/CovariateAdjustment/RISW2026)
+  Adjustment](https://raw.githubusercontent.com/CovariateAdjustment/RISW2026/refs/heads/main/ASA_Biopharm_RISW_2026_SC06_slide_set_1_short_course_covariate_adjustment.pdf)
 - [2. Software & Code for Covariate
-  Adjustment](https://github.com/CovariateAdjustment/RISW2026)
+  Adjustment](https://raw.githubusercontent.com/CovariateAdjustment/RISW2026/refs/heads/main/ASA_Biopharm_RISW_2026_SC06_slide_set_2_RCT_Covariate_Adjustment_Applications.pdf)
 - [3. Covariate Adjustment in Group Sequential
-  Designs](https://github.com/CovariateAdjustment/RISW2026)
+  Designs](https://raw.githubusercontent.com/CovariateAdjustment/RISW2026/refs/heads/main/ASA_Biopharm_RISW_2026_SC06_slide_set_3_GroupSequentialDesigns.pdf)
 - [4. Information Adapative
-  Designs](https://github.com/CovariateAdjustment/RISW2026)
+  Designs](https://raw.githubusercontent.com/CovariateAdjustment/RISW2026/refs/heads/main/ASA_Biopharm_RISW_2026_SC06_slide_set_4_InformationAdaptive.pdf)
 - [5. Examples: Continuous, Binary, Ordinal,
-  Time-to-Event](https://github.com/CovariateAdjustment/RISW2026)
+  Time-to-Event](https://raw.githubusercontent.com/CovariateAdjustment/RISW2026/refs/heads/main/ASA_Biopharm_RISW_2026_SC06_Covariate_Adjustment_Examples_in_R.html)
+  - [Quarto Markdown to Create HTML
+    Report](https://raw.githubusercontent.com/CovariateAdjustment/RISW2026/refs/heads/main/ASA_Biopharm_RISW_2026_SC06_Covariate_Adjustment_Examples_in_R.qmd)
 
 [Use this link to download the repo in a .zip
-file](https://github.com/CovariateAdjustment/RISW2026)
+file](https://github.com/CovariateAdjustment/RISW2026/archive/refs/heads/main.zip)

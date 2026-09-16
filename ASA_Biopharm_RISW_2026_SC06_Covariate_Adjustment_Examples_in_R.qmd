@@ -1,0 +1,1307 @@
+---
+title: "Improving Precision & Power in Randomized Trials Using Covariate Adjustment"
+
+shorttitle: "RISW 2026 SC06: Improving Power and Precision in Randomized Trials Using Covariate Adjustment"
+
+subtitle: "ASA Biopharm 2026: SC06"
+
+date: "today"
+
+
+author:   
+  - name: Josh Betz^1^
+    id: JFB
+    orcid: 0000-0003-4488-9799
+    email: jbetz@jhu.edu
+    # affiliations:
+    #   - name: Johns Hopkins Bloomberg School of Public Health
+    #     city: Baltimore
+    #     state: MD
+    #     country: USA
+    #     department: Department of Biostatistics
+        
+institute:
+  - "^1^Department of Biostatistics,\n\nJohns Hopkins Bloomberg School of Public Health\n\nBaltimore, MD, USA"
+
+format:
+  html:
+    citation: FALSE
+    citation-location: document
+    citations-hover: true
+    code-fold: "show"
+    crossrefs-hover: true
+    embed-resources: true
+    fig-align: center
+    fig-dpi: 72
+    fig-height: 8
+    fig-width: 8
+    grid:
+      sidebar-width: 300px
+      body-width: 1200px
+      margin-width: 300px
+    image-height: "8 in"
+    image-width: "8 in"
+    keep-md: true
+    number-sections: true
+    number-depth: 3
+    page-layout: full
+    toc: true
+    toc-location: left
+
+bibliography: bibliography.bib
+# csl: american-statistical-association.csl
+---
+
+```{r Setup, echo = FALSE, eval = FALSE}
+# NOTE: Run Chunk 2 to install required packages
+
+installed_packages <- installed.packages()[, "Package"]
+
+required_packages_cran <-
+  c("cobalt", # Standardized Differences
+    "dplyr", # Wrangling Data
+    "kableExtra", # Printing Tables
+    "lmtest", # Robust CIs - Only used for illustration
+    "pak", # Managing Packages
+    "sandwich", # Robust SEs - Only used for illustration
+    "table1") # Tabulations
+
+required_packages_github_repos <-
+  c("covariateadjustment/examplercts",
+    "jbetz-jhu/drwls",
+    "nt-williams/simul",
+    "nt-williams/adjrct")
+
+required_packages_github <-
+  gsub(
+    pattern = "^[A-Za-z0-9\\_\\.\\-]*/",
+    replacement = "",
+    x = c(required_packages_github_repos)
+  )
+
+
+missing_packages <-
+  setdiff(
+    x = c(required_packages_cran, required_packages_github),
+    y = installed_packages
+  )
+
+if(length(missing_packages) > 0){
+  stop(
+    "Required packages not installed: ", 
+    paste(missing_packages, collapse = ","), ". ",
+    "See `cran_packages` and `github_packages` in the configuration file."
+  )
+}
+
+
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  echo = TRUE,
+  message = FALSE,
+  error = TRUE,
+  purl = FALSE,
+  results = "markup",
+  fig.path = "figures/",
+  fig.width = 8,
+  fig.height = 8,
+  fig.align = "center",
+  fig.asp = 0.618,
+  out.height = "80%",
+  dev = "png"
+)
+
+options(
+  width = 80,
+  knitr.kable.NA = ""
+)
+```
+
+
+
+
+```{r Install-Packages, eval = FALSE, echo = FALSE}
+# Only need to run if packages haven't been previously installled
+if(length(missing_packages) > 0){
+  install_from_cran <-
+    setdiff(
+      x = required_packages_cran,
+      y = installed_packages
+    )
+  
+  if(length(install_from_cran) > 0){
+    pak::pkg_install(pkg = install_from_cran)
+  }
+  
+  install_from_github <-
+    setdiff(
+      x = required_packages_github,
+      y = installed_packages
+    )
+  
+  install_gh_i <-
+    match(x = install_from_github, table = required_packages_github)
+  
+  install_from_github <-
+    required_packages_github_repos[install_gh_i]
+  
+  if(length(install_from_github) > 0){
+    pak::pkg_install(pkg = install_from_cran)
+  }
+}
+```
+
+
+# Required Packages
+
+::: {.panel-tabset}
+
+## Install Packages
+
+```{r Install-packages, eval = FALSE}
+install.packages(
+  pkgs = c("dplyr", "drord", "cobalt", "kableExtra", "lmtest", "pak",
+           "sandwich", "speff2trial", "table1")
+)
+
+# Installing packages from GitHub
+pak::pak(
+  pkg = 
+    c("covariateadjustment/examplercts",
+      "jbetz-jhu/drwls", 
+      "nt-williams/simul",
+      "nt-williams/adjrct")
+)
+```
+
+Occasionally you may get an error such as this:
+
+```
+**Error**:
+! error in pak subprocess
+**Caused by error** in `stop_task_install(state, worker)`:
+! Failed to install binary package drwls.
+Type .Last.error to see the more details.
+``` 
+If so, just try re-running the `pak()` command. This usually resolves itself. You can also try installing packages one-by-one.
+
+## Load Packages
+
+```{r Load-examplercts-package, message = FALSE}
+# Continuous, Binary Analyses
+library(dplyr) # Wrangling data
+library(drwls) # g-Computation & DR-WLS
+library(cobalt) # Standardized Differences
+library(examplercts) # Example Datasets
+library(kableExtra) # Printing Tables in HTML/TeX
+library(lmtest) # Computing CIs with Robust SEs
+library(sandwich) # Computing Robust SEs for GLMs
+library(table1) # Tabulations
+
+# Ordinal, Time-to-Event Analyses
+library(adjrct) # Time-to-Event: Survival & RMST
+library(drord) # Adjusted Ordinal Analyses
+library(speff2trial) # Adjusted Marginal Hazard Ratio
+library(survival) # Logrank tests; Cox PH Model
+```
+
+:::
+
+
+
+
+--------------------------------------------------------------------------------
+
+
+
+
+# Continuous: Licorice Gargle
+
+
+::: {.panel-tabset}
+
+
+## Data Dictionary
+
+We can use `?licorice_gargle` to open the help file about the data. The data come from a randomized trial assessing whether a licorice gargle provides better management of endotracheal extubation symptoms (couging, pain) at various points post-extubation (30 minutes, 90 minutes, 4 hours, next morning). The baseline covariates include age, sex, physical status, BMI, and Mallampati Score (predicted ease of endotracheal intubation).
+
+```{r licorice-gargle-dictionary}
+data.frame(
+  column = names(licorice_gargle),
+  name =
+    sapply(X = licorice_gargle, function(x) attr(x = x, which = "label")),
+  row.names = NULL
+) %>%
+  kableExtra::kable(
+    x = .,
+    caption = "Columns of the `licorice_gargle` dataset."
+  )
+```
+
+
+
+
+## Tabulations: BL
+
+The `table1` package can be used to provide tabulations of the baseline covariates. It is important to assess whether some covariates may have categories with low frequencies that may need to be pooled in accordance with the statistical analysis plan, or missing values that need to be addressed through imputation.
+
+```{r licorice-gargle-baseline-covariates}
+table1::table1(
+  x = ~ age_bl + gender + asa_physical_status_bl + bmi_bl + mallampati_bl |
+    arm,
+  data = licorice_gargle
+)
+```
+
+
+
+
+## Imbalance
+
+The imbalance in covariates between arms can be assessed using their standardized differences. Covariate adjustment should be done based on *a priori* knowledge of the domain area, not based on the observed imbalance.
+
+
+```{r licorice-gargle-covariate-balance, results = "markup"}
+cobalt::bal.tab(
+  x = 
+    # Only tabulate baseline variables
+    licorice_gargle %>% 
+    dplyr::select(
+      dplyr::all_of(
+        x = c("age_bl", "gender", "asa_physical_status_bl", "bmi_bl",
+              "mallampati_bl")
+      )
+    ),
+  treat = licorice_gargle$arm,
+  # Compute standardized differences for both binary and continuous variables
+  binary = "std",
+  continuous = "std",
+  s.d.denom = "pooled"
+)
+```
+
+The results can be saved and reformatted into a table for presentation purposes.
+
+
+
+
+## Tabulations: Outcomes
+
+Outcomes should also be checked for missingness and low frequencies, which
+should be addressed according to the statistical analysis plan.
+
+```{r licorice-gargle-outcomes}
+table1::table1(
+  x = ~ pacu_30_min_throat_pain + pacu_30_min_cough +
+    pacu_90_min_throat_pain + pacu_90_min_cough +
+    postop_4h_throat_pain + postop_4h_cough +
+    postop_1d_am_throat_pain + postop_1d_am_cough |
+    arm,
+  data = licorice_gargle
+)
+```
+
+
+
+
+## Two Sample t-Test
+
+```{r licorice-gargle-30m-unadjusted-t-test, results = "markup"}
+licorice_30_min_pain_t_test <-
+  t.test(
+    pacu_30_min_throat_pain ~ arm,
+    data = licorice_gargle
+  )
+
+licorice_30_min_pain_t_test
+
+# Note: t-test is presenting [Control] (Reference) - [Treatment]
+# This is simple to correct to give [Treatment] - [Control]
+diff(licorice_30_min_pain_t_test$estimate)
+-rev(licorice_30_min_pain_t_test$conf.int)
+
+# Unadjusted estimate Standard Error
+licorice_30_min_pain_t_test$stderr
+```
+
+
+
+
+## ANCOVA
+
+The ANCOVA is a model-based approach to covariate adjustment, but since it uses an identity link, the marginal effect and conditional effect coincide. Only the marginal effect measure is robust to model misspecification, which requires that robust standard errors are used for testing and confidence intervals [@Tsiatis2008Covariate].
+
+```{r licorice-gargle-30m-ancova, results = "markup"}
+licorice_30_min_pain_glm_adjusted <-
+  glm(
+    pacu_30_min_throat_pain ~ arm + 
+      age_bl + gender + asa_physical_status_bl + bmi_bl + mallampati_bl,
+    data = licorice_gargle,
+    family = gaussian # Default for GLM
+  )
+
+# Model-Based Inference: Assumes correctly-specified model
+summary(licorice_30_min_pain_glm_adjusted)
+confint(licorice_30_min_pain_glm_adjusted)["arm1. 0.5g Licorice",]
+
+licorice_30_min_pain_ancova_robust_vcov <-
+  sandwich::vcovHC(licorice_30_min_pain_glm_adjusted, type = "HC0")
+
+# Tests based on Robust SEs:
+lmtest::coeftest(
+  x = licorice_30_min_pain_glm_adjusted,
+  vcov. = licorice_30_min_pain_ancova_robust_vcov
+)
+
+# CIs based on Robust SEs
+licorice_30_min_pain_ancova_robust_ci <-
+  lmtest::coefci(
+    x = licorice_30_min_pain_glm_adjusted,
+    vcov. = licorice_30_min_pain_ancova_robust_vcov
+  )
+licorice_30_min_pain_ancova_robust_ci
+```
+
+
+
+
+## G-Computation: Manual
+
+G-computation, also known as marginal standardization, is a semiparametric approach that uses a fitted model for predicting the expected outcome for each individual under each treatment assignment. These predictions are then averaged, and the averages are contrasted to give a difference or ratio measure (difference in means, risk difference, risk ratio, or odds ratio) [@Colantuoni2015Leveraging].
+
+```{r licorice-gargle-30m-g-computation-manual, results = "markup"}
+# Step 2: Use working model to predict outcomes under each treatment
+pred_30_min_pain_licorice <-
+  predict(
+    object = licorice_30_min_pain_glm_adjusted,
+    newdata =
+      # Change all treatment assignment to Licorice Gargle arm
+      within(
+        data = licorice_gargle,
+        expr = {arm = "1. 0.5g Licorice"}
+      ),
+    type = "response"
+  )
+
+pred_30_min_pain_sucrose <-
+  predict(
+    object = licorice_30_min_pain_glm_adjusted,
+    newdata =
+      # Change all treatment assignment to Sucrose Gargle arm
+      within(
+        data = licorice_gargle,
+        expr = {arm = "0. 5g Sugar"}
+      ),
+    type = "response"
+  )
+
+# Step 3: Average predictions
+mean_pred_30_min_pain_licorice <- mean(pred_30_min_pain_licorice)
+mean_pred_30_min_pain_sucrose <- mean(pred_30_min_pain_sucrose)
+
+# Step 4: Contrast Predictions
+difference_licorice_sucrose <- 
+  mean_pred_30_min_pain_licorice - mean_pred_30_min_pain_sucrose
+difference_licorice_sucrose
+
+ratio_licorice_sucrose <- 
+  mean_pred_30_min_pain_licorice/mean_pred_30_min_pain_sucrose
+ratio_licorice_sucrose
+
+
+# ANCOVA coincides with G-Computation
+difference_licorice_sucrose
+coef(licorice_30_min_pain_glm_adjusted)["arm1. 0.5g Licorice"]
+```
+
+
+
+
+## G-Computation: `drwls::standardization`
+
+The `drwls::standardization` performs G-computation (marginal standardization). It imputes missing data using mean/mode imputation, and obtains standard errors either using the nonparametric bootstrap or the sandwich estimator.
+
+```{r licorice-gargle-30m-g-computation-drwls, results = "markup"}
+licorice_30_min_pain_g_computation <-
+  drwls::standardization(
+    outcome_formula = 
+      pacu_30_min_throat_pain ~ tx +
+      age_bl + gender + asa_physical_status_bl + bmi_bl + mallampati_bl,
+    outcome_family = gaussian,
+    treatment_column = "tx",
+    estimand = "difference", # Compute Difference in Means
+    data = licorice_gargle,
+    se_method = "asymptotic"
+  )
+
+licorice_30_min_pain_g_computation
+```
+
+
+
+
+## Precision Gain
+
+An estimate of the precision gain can be obtained by estimating the relative
+efficiency of the adjusted and unadjusted estimates.
+
+```{r licorice-gargle-30m-precision}
+# Unadjusted SE
+licorice_30_min_pain_t_test$stderr
+# ANOVA: Robust SE
+ate_i <- 
+  which(colnames(licorice_30_min_pain_ancova_robust_vcov) == "arm1. 0.5g Licorice")
+sqrt(licorice_30_min_pain_ancova_robust_vcov[ate_i, ate_i])
+# G-Computation: Robust SE
+licorice_30_min_pain_g_computation$result$se[1]
+
+# Improvement in Efficiency
+1 - (licorice_30_min_pain_g_computation$result$se[1]/licorice_30_min_pain_t_test$stderr)^2
+```
+
+
+
+
+## Small Sample Corrections
+
+The small sample correction provided in [@Tsiatis2008Covariate] can be implemented using the `variance_adjustment` argument:
+
+```{r licorice-gargle-30m-g-computation-drwls-df-tsiatis, results = "markup"}
+licorice_30_min_pain_g_computation_tsiatis <-
+  drwls::standardization(
+    outcome_formula = 
+      pacu_30_min_throat_pain ~ tx +
+      age_bl + gender + asa_physical_status_bl + bmi_bl + mallampati_bl,
+    outcome_family = gaussian,
+    treatment_column = "tx",
+    estimand = "difference", # Compute Difference in Means
+    data = licorice_gargle,
+    se_method = "asymptotic",
+    variance_adjustment = variance_adjustment_tsiatis
+  )
+
+licorice_30_min_pain_g_computation
+```
+
+
+
+
+## Doubly Robust: `drwls:drwls`
+
+To address missingness, the `drwls()` function weights the complete cases by the inverse probability of being observed at follow-up based on a missingness model [@Robins2007Performance]:
+
+```{r licorice-gargle-30m-drwls, results = "markup"}
+licorice_30_min_pain_drwls <-
+  drwls::drwls(
+    outcome_formula = 
+      pacu_30_min_throat_pain ~ tx +
+      age_bl + gender + asa_physical_status_bl + bmi_bl + mallampati_bl,
+    outcome_family = gaussian,
+    treatment_column = "tx",
+    estimand = "difference", # Compute Difference in Means
+    missing_formula = ~ tx + age_bl + bmi_bl,
+    missing_family = binomial,
+    data = licorice_gargle,
+    se_method = "asymptotic"
+  )
+
+licorice_30_min_pain_drwls
+```
+
+:::
+
+
+
+
+--------------------------------------------------------------------------------
+
+
+
+
+# Binary: Licorice Gargle
+
+
+::: {.panel-tabset}
+
+
+## Tabulations: Outcomes
+
+```{r licorice-gargle-outcomes-binary}
+table1::table1(
+  x = ~ 
+    pacu_30_min_any_throat_pain + 
+    pacu_90_min_any_throat_pain +
+    postop_4h_any_throat_pain + 
+    postop_1d_am_any_throat_pain |
+    arm,
+  data = licorice_gargle
+)
+```
+
+
+
+
+## Logistic Regression
+
+A logistic regression model can be used for model-based inference about the *conditional* odds ratio, assuming that the model is correctly specified:
+
+```{r licorice-gargle-30m-any-logistic, results = "markup"}
+licorice_30_min_any_pain_glm_adjusted <-
+  glm(
+    pacu_30_min_any_throat_pain ~ arm + 
+      age_bl + gender + asa_physical_status_bl + bmi_bl + mallampati_bl,
+    data = licorice_gargle,
+    family = binomial
+  )
+
+# Summarize logistic regression coefficients
+summary(licorice_30_min_any_pain_glm_adjusted)
+
+# Obtain conditional odds ratios
+exp(coef(licorice_30_min_any_pain_glm_adjusted))
+```
+
+
+
+
+## G-Computation: Risk Difference
+
+Rather than assuming a correctly specified working model, DR-WLS can be used to infer about the *marginal risk difference*:
+
+```{r licorice-gargle-30m-drwls-risk-difference, results = "markup"}
+licorice_30_min_any_pain_drwls_rd <-
+  drwls::drwls(
+    outcome_formula = 
+      pacu_30_min_any_throat_pain ~ tx +
+      age_bl + gender + asa_physical_status_bl + bmi_bl + mallampati_bl,
+    outcome_family = binomial,
+    treatment_column = "tx",
+    estimand = "difference", # Compute Risk Difference
+    missing_formula = ~ tx + age_bl + bmi_bl,
+    missing_family = binomial,
+    data = licorice_gargle,
+    se_method = "asymptotic"
+  )
+
+licorice_30_min_any_pain_drwls_rd
+```
+
+
+
+
+## G-Computation: Marginal Odds Ratio
+
+A *marginal odds ratio* can be computed, but this 
+
+```{r licorice-gargle-30m-drwls-odds-ratio, results = "markup"}
+licorice_30_min_any_pain_drwls_or <-
+  drwls::drwls(
+    outcome_formula = 
+      pacu_30_min_any_throat_pain ~ tx +
+      age_bl + gender + asa_physical_status_bl + bmi_bl + mallampati_bl,
+    outcome_family = binomial,
+    treatment_column = "tx",
+    estimand = "oddsratio", # Compute Odds Ratio
+    missing_formula = ~ tx + age_bl + bmi_bl,
+    missing_family = binomial,
+    data = licorice_gargle,
+    se_method = "bootstrap"
+  )
+
+licorice_30_min_any_pain_drwls_or
+```
+
+:::
+
+
+
+
+--------------------------------------------------------------------------------
+
+
+
+# Ordinal: Streptomycin in TB
+
+There are several estimands that may be of interest in an ordinal outcome,
+including the Mann-Whitney estimand, log odds ratio, and expected utility.
+Covariate adjusted estimates of these quantities that are robust to model
+misspecification are available for each of these estimands
+[@Diaz2015Enhanced; @Benkeser2020Improving]. These methods will be illustrated
+using a randomized trial for streptomycin in Tuberculosis.
+
+::: {.panel-tabset}
+
+
+
+## Data Dictionary
+
+The `strep_tb` dataset contains baseline covariates and outcomes at 6 months
+post-randomization. The primary outcome at 6 months is an ordinal scale,
+combining survival and change in disease based on radiologic measures. While
+the outcome is categorized in binary terms as "not improved" or "improved", the
+ordinal scale may contain more information.
+
+```{r strep-tb-dictionary}
+data.frame(
+  column = names(strep_tb),
+  name =
+    sapply(X = strep_tb, function(x) attr(x = x, which = "label")),
+  row.names = NULL
+) %>%
+  kableExtra::kable(
+    x = .,
+    caption = "Columns of the `strep_tb` dataset."
+  )
+```
+
+
+
+
+## Tabulations: BL
+
+As seen from the tabulations, there are low frequencies that need to be addressed, as well as a missing value in the covariates.
+
+```{r strep-tb-baseline-covariates}
+table1::table1(
+  x = ~ gender + condition_bl + sed_rate_esr_bl + cxr_lung_cavitation_bl |
+    arm,
+  data = strep_tb
+)
+```
+
+
+
+
+## Tabulations: Outcomes
+
+Low frequencies in the radiologic outcomes also require pooling.
+
+```{r strep-tb-outcomes}
+table1::table1(
+  x = 
+    ~ strep_resistance_f_6m +
+    radiologic_outcome_f_6m +
+    radiologic_improvement_f_6m | arm,
+  data = strep_tb
+)
+```
+
+
+
+## Pooling Categories
+
+For this example, category 4 ("No Change") will be pooled with "Moderate Deterioration". Sedimentation rate will be pooled into a binary variable. Since only one value is missing in a binary variable, a value imputing each possibility can be computed, and the sensitivity of imputation assessed.
+
+```{r strep-tb-pool, results = "markup", results = "markup"}
+strep_tb_pooled <-
+  strep_tb %>% 
+  dplyr::mutate(
+    radiologic_outcome_pool_6m =
+      dplyr::case_when(
+        radiologic_outcome_6m %in% 1:2 ~ radiologic_outcome_6m,
+        radiologic_outcome_6m %in% 3:4 ~ 3,
+        radiologic_outcome_6m %in% 5:6 ~ radiologic_outcome_6m - 1
+      ),
+    condition_bl_pool =
+      dplyr::case_when(
+        condition_bl %in% c("1. Good", "2. Fair") ~ "0. Good/Fair",
+        condition_bl %in% c("3. Poor") ~ "1. Poor",
+      ) %>% 
+      factor(),
+    sed_rate_esr_lte_50_bl_imp_0 =
+      dplyr::case_when(
+        sed_rate_esr_bl %in% c(NA, "2. 11-20", "3. 21-50") ~ "0. <= 50",
+        sed_rate_esr_bl %in% c("4. 51+") ~ "1. > 50"
+      ) %>% 
+      factor(),
+    sed_rate_esr_lte_50_bl_imp_1 =
+      dplyr::case_when(
+        sed_rate_esr_bl %in% c("2. 11-20", "3. 21-50") ~ "0. <= 50",
+        sed_rate_esr_bl %in% c(NA, "4. 51+") ~ "1. > 50"
+      ) %>%
+      factor()
+  )
+
+# Check Pooled Variable
+strep_tb_pooled %>% 
+  dplyr::count(radiologic_outcome_6m, radiologic_outcome_pool_6m)
+
+# Check Pooled + Imputed Covariate
+strep_tb_pooled %>% 
+  dplyr::count(
+    sed_rate_esr_bl, sed_rate_esr_lte_50_bl_imp_0, sed_rate_esr_lte_50_bl_imp_1
+  )
+```
+
+
+
+## Imbalance
+
+```{r strep-tb-covariate-balance, results = "markup"}
+cobalt::bal.tab(
+  x = 
+    # Only tabulate baseline variables
+    strep_tb_pooled %>% 
+    dplyr::select(
+      dplyr::all_of(
+        x = c("gender", "condition_bl_pool", 
+              "sed_rate_esr_lte_50_bl_imp_0", "sed_rate_esr_lte_50_bl_imp_1")
+      )
+    ),
+  treat = strep_tb_pooled$arm,
+  # Compute standardized differences for both binary and continuous variables
+  binary = "std",
+  continuous = "std",
+  s.d.denom = "pooled"
+)
+```
+
+
+
+
+## Helper Function
+
+A helper function can make it easier to extract and report results with `drord::drord`:
+
+```{r summary.drord}
+summary.drord <-
+  function(object, ...){
+    results_list <- list()
+    for(i in c("mann_whitney", "log_odds", "weighted_mean")){
+      if(i == "weighted_mean") {
+        object[["weighted_mean"]]$est <- object[["weighted_mean"]]$est$est
+      }
+      if(i == "mann_whitney") {
+        object[["mann_whitney"]]$ci <-
+          lapply(
+            X = object[["mann_whitney"]]$ci,
+            FUN = function(x) if(!is.null(x)) matrix(x, ncol = 2)
+          )
+      }
+      if(i %in% names(object)) results_list[[i]] <- c(results_list, object[[i]])
+    }
+    ci_wald <- "wald" %in% object$ci
+    ci_bca <- "bca" %in% object$ci
+    alpha <- object$alpha
+    
+    for(i in 1:length(results_list)){
+      null_i <-
+        switch(
+          EXPR = names(results_list)[i],
+          "mann_whitney" = c(0.5),
+          "log_odds" = c(NA, NA, 0),
+          "weighted_mean" = c(NA, NA, 0)
+        )
+      
+      estimand_i <-
+        switch(
+          EXPR = names(results_list)[i],
+          "mann_whitney" = "Mann-Whitney",
+          "log_odds" = c("Log Odds: A = 1", "Log Odds: A = 1", "Log Odds Ratio: 1/0"),
+          "weighted_mean" = c("Mean: A = 1", "Mean: A = 0", "Difference: 1-0")
+        )
+      
+      results_list[[i]] <-
+        with(
+          data = results_list[[i]],
+          expr =
+            data.frame(
+              estimand = estimand_i,
+              estimate = est,
+              null_value = null_i,
+              se = 
+                if(ci_wald){(ci$wald[, 2] - est)/qnorm(p = 1 - alpha/2)} else {NA},
+              wald_lcl = if(ci_wald){ci$wald[, 1]} else {NA},
+              wald_ucl = if(ci_wald){ci$wald[, 2]} else {NA},
+              bca_lcl = if(ci_bca){ci$bca[, 1]} else {NA},
+              bca_ucl = if(ci_bca){ci$bca[, 2]} else {NA}
+            )
+        )
+    }
+    
+    results_table <- do.call(what = rbind, args = results_list)
+    rownames(results_table) <- NULL
+    results_table$wald_z <- 
+      with(
+        data = results_table,
+        expr = (estimate - null_value)/se
+      )
+    
+    results_table$`p-value` <-
+      with(
+        data = results_table,
+        expr = 2*pnorm(q = -abs(wald_z))
+      )
+    
+    if(!ci_wald){
+      results_table[, 
+                    c("se", "wald_lcl", "wald_ucl", "wald_z", "p-value")] <- NULL
+    }
+    
+    if(!ci_bca){
+      results_table[, c("bca_lcl", "bca_ucl")] <- NULL
+    }
+    
+    return(
+      results_table
+    )
+  }
+```
+
+This allows us to back-calculate standard errors and test statistics from Wald confidence intervals.
+
+
+
+
+## Ordinal: Unadjusted
+
+```{r strep-tb-Ordinal-Unadjusted, results = "markup"}
+strep_rad_6m_unadjusted <-
+  with(
+    data = strep_tb_pooled,
+    expr = {
+      drord::drord(
+        out = as.numeric(radiologic_outcome_pool_6m),
+        treat = tx,
+        covar = data.frame(gender, condition_bl, sed_rate_esr_bl,
+                           cxr_lung_cavitation_bl),
+        out_form = "1", # Unadjusted - Intercept Only
+        treat_form = "1", # Unadjusted - Intercept Only
+      )
+    }
+  )
+
+strep_rad_6m_unadjusted_table <-
+  summary.drord(strep_rad_6m_unadjusted)
+
+kableExtra::kbl(
+  x = strep_rad_6m_unadjusted_table,
+  digits = c(rep(x = 2, 7), 4),
+  caption = "Unadjusted analyses of the `strep_tb` dataset."
+)
+```
+
+
+
+
+## Ordinal: Adjusted
+
+```{r strep-tb-Ordinal-Adjusted, results = "markup"}
+strep_rad_6m_adjusted <-
+  with(
+    data = strep_tb_pooled,
+    expr = {
+      drord::drord(
+        out = as.numeric(radiologic_outcome_pool_6m),
+        treat = tx,
+        covar = 
+          data.frame(gender, condition_bl_pool, 
+                     sed_rate_esr_lte_50_bl_imp_1, cxr_lung_cavitation_bl),
+        out_form = "gender + condition_bl_pool + sed_rate_esr_lte_50_bl_imp_1",
+        treat_form = "gender + condition_bl_pool + sed_rate_esr_lte_50_bl_imp_1"
+      )
+    }
+  )
+
+strep_rad_6m_adjusted_table <-
+  summary.drord(strep_rad_6m_adjusted)
+
+kableExtra::kbl(
+  x = strep_rad_6m_adjusted_table,
+  digits = c(rep(x = 2, 7), 4),
+  caption = "Adjusted analyses of the `strep_tb` dataset."
+)
+```
+
+
+
+
+## Precision Gain
+
+As seen below, there is appreciable precision gain across each estimand from adjustment.
+
+```{r strep-tb-ordinal-gain, results = "markup"}
+est_labels <- c("Mann-Whitney", "Log Odds Ratio: 1/0", "Difference: 1-0")
+est_rows <- which(strep_rad_6m_adjusted_table$estimand %in% est_labels)
+
+strep_tb_gain <- 
+  setNames(
+    object = 1 - (strep_rad_6m_adjusted_table$se[est_rows]/
+                    strep_rad_6m_unadjusted_table$se[est_rows])^2,
+    nm = est_labels
+  )
+
+strep_tb_gain
+```
+
+:::
+
+
+
+
+--------------------------------------------------------------------------------
+
+
+
+# Time-to-Event: Colon Cancer
+
+The Cox proportional hazards (PH) model is commonly used in time-to-event
+outcomes. Use of the PH model entails two assumptions: the assumption of non-informative censoring and the assumption of proportional hazards.
+
+Non-informative censoring assumes that within any subgroup of interest, the
+event rates among the censored are equal to those who remain uncensored [@Kleinbaum2012].
+
+The proportional hazards assumption does not specify the hazard function for
+each arm, but does require that their ratio is approximately constant during
+the follow-up period. Mild departures from this assumption still allow the
+estimated hazard ratio to be interpreted as a weighted average hazard ratio
+over the follow-up time. Larger departures from this assumption can lead to
+questions of interpretation and loss of power.
+
+The restricted mean survival time (RMST) and survival probability are two
+estimands that do not require the proportional hazards assumption. Instead, a
+clinically meaningful time horizon $\tau$ is specified, and the RMST or survival
+probability is computed at the time $\tau$.
+
+The RMST can be interpreted as the difference in time individuals can expect to
+remain event free if they were assigned to the treatment arm instead of control.
+
+The RMST and survival probability at time $\tau$ both provide a meaningful
+effect measure that does not require the proportional hazards assumption.
+
+These approaches will be illustrated in a randomized trial of chemotherapy for
+colon cancer.
+
+
+::: {.panel-tabset}
+
+## Data Dictionary
+
+```{r colon-cancer-dictionary}
+data.frame(
+  column = names(colon_cancer_active),
+  name =
+    sapply(X = colon_cancer_active, function(x) attr(x = x, which = "label")),
+  row.names = NULL
+) %>%
+  kableExtra::kable(
+    x = .,
+    caption = "Columns of the `colon_cancer_active` dataset."
+  )
+```
+
+
+
+
+## Tabulations: BL
+
+No covariates are missing, however, `local_spread_bl` and `perforation_bl` have low frequency categories.
+
+```{r colon-cancer-baseline-covariates}
+table1::table1(
+  x = ~ age_bl + sex + obstruction_bl + perforation_bl + organ_adherence_bl +
+    positive_nodes_bl + differentiation_bl + local_spread_bl + 
+    time_surgery_registration_bl |
+    arm,
+  data = colon_cancer_active
+)
+```
+
+
+
+
+## Pooling Categories
+
+```{r colon-cancer-pool}
+colon_cancer_active_pool <-
+  colon_cancer_active %>% 
+  dplyr::mutate(
+    local_spread_bl_pool =
+      dplyr::case_when(
+        local_spread_bl %in% c("1. Submucosa", "2. Muscle") ~ 
+          "0. Submucosa or Muscle",
+        local_spread_bl %in% c("3. Serosa", "4. Contiguous structures") ~ 
+          "1. Serosa or Contiguous Structures",
+      ) %>% 
+      factor
+  )
+
+colon_cancer_active_pool %>% 
+  count(local_spread_bl, local_spread_bl_pool)
+```
+
+
+
+
+## Imbalance
+
+Most of the covariates in this trial show fairly good balance with the exception of `sex`.
+
+```{r colon-cancer-covariate-balance, results = "markup"}
+cobalt::bal.tab(
+  x = 
+    # Only tabulate baseline variables
+    colon_cancer_active_pool %>% 
+    dplyr::select(
+      dplyr::all_of(
+        x = c("age_bl", "sex", "obstruction_bl", "perforation_bl",
+              "organ_adherence_bl", "positive_nodes_bl", "differentiation_bl",
+              "local_spread_bl_pool", "time_surgery_registration_bl")
+      )
+    ),
+  treat = colon_cancer_active_pool$arm,
+  # Compute standardized differences for both binary and continuous variables
+  binary = "std",
+  continuous = "std",
+  s.d.denom = "pooled"
+)
+```
+
+
+
+
+## Logrank Test
+
+The `survival::survdiff` function carries out the $G^{\rho}$ family of tests for time-to-event outcomes. The default value of the `rho` parameter gives the logrank test:
+
+```{r colon-cancer-logrank, results = "markup"}
+survival::survdiff(
+  formula = 
+    survival::Surv(time = time_to_death, event = event_death) ~ tx,
+  data = colon_cancer_active_pool
+)
+```
+
+
+
+
+## Unadjusted Cox
+
+The unadjusted Cox proportional hazards model can be fit as follows to obtain the marginal hazard ratio:
+
+```{r colon-cancer-unadjusted-cox, results = "markup"}
+colon_cancer_cox_unadjusted <-
+  survival::coxph(
+    formula = survival::Surv(time = time_to_death, event = event_death) ~ tx,
+    data = colon_cancer_active_pool,
+    robust = TRUE # Use Sandwich Standard Errors
+  ) 
+
+summary(colon_cancer_cox_unadjusted)
+```
+
+Before interpreting the Hazard Ratio, the proportional hazards assumption can be checked with `survival::cox.zph()`:
+
+```{r colon-cancer-unadjusted-cox-ph-test, results = "markup"}
+survival::cox.zph(colon_cancer_cox_unadjusted)
+```
+
+
+
+
+## Adjusted Conditional Cox
+
+```{r colon-cancer-adjusted-cox, results = "markup"}
+colon_cancer_cox_adjusted <-
+  survival::coxph(
+    formula = 
+      survival::Surv(time = time_to_death, event = event_death) ~ tx +
+      age_bl + sex + obstruction_bl + organ_adherence_bl +
+      positive_nodes_bl + differentiation_bl + local_spread_bl_pool +
+      time_surgery_registration_bl,
+    data = colon_cancer_active_pool,
+    robust = TRUE # Use Sandwich Standard Errors
+  ) 
+
+summary(colon_cancer_cox_adjusted)
+```
+
+The proportional hazards assumption should be checked for the covariate adjusted Cox model:
+
+```{r colon-cancer-adjusted-cox-ph-test, results = "markup"}
+survival::cox.zph(colon_cancer_cox_adjusted)
+```
+
+
+
+
+## Adjusted Conditional Cox
+
+While the Cox model provides a conditional hazard ratio, the `speff2trial::speffSurv` function computes a covariate adjusted marginal hazard ratio:
+
+```{r colon-cancer-speffsurv, results = "markup"}
+colon_cancer_speffsurv <-
+  speff2trial::speffSurv(
+    formula = 
+      survival::Surv(time = time_to_death, event = event_death) ~
+      age_bl + sex + obstruction_bl + organ_adherence_bl +
+      positive_nodes_bl + differentiation_bl + local_spread_bl_pool +
+      time_surgery_registration_bl,
+    data = colon_cancer_active_pool,
+    trt.id = "tx",
+    fixed = TRUE,
+    
+  )
+
+summary(colon_cancer_speffsurv)
+```
+
+
+
+
+## Precision Gain: HR
+
+Since this provides the estimates and standard errors of both the unadjusted and adjusted marginal hazard ratios, this simplifies computing the relative efficiency of the adjusted analysis:
+
+```{r colon-cancer-speffsurv-gain, results = "markup"}
+colon_cancer_speffsurv_gain <-
+  with(
+    data = colon_cancer_speffsurv,
+    expr = as.numeric(1 - (varbeta["Speff"]/varbeta["Prop Haz"]))
+  )
+
+colon_cancer_speffsurv_gain
+```
+
+
+
+
+## Unadjusted RMST and Survival
+
+The `adjrct` package computes doubly robust estimates of the RMST and SP, two estimands that are clinically relevant and do not depend on the proportional hazards assumption. The first step involves 
+
+```{r colon-cancer-metadata-unadjusted, results = "markup"}
+colon_cancer_meta_unadj <-
+  adjrct::survrct(
+    outcome.formula = 
+      survival::Surv(time = time_to_death, event = event_death) ~ tx,
+    trt.formula = tx ~ 1,
+    data = colon_cancer_active_pool,
+    coarsen = 30 # Time scale: Months vs. Days
+  )
+
+# Restricted Mean Survival Time
+colon_cancer_rmst_unadj <-
+  adjrct::rmst(
+    metadata = colon_cancer_meta_unadj,
+    # Survival at 1, 3, and 5-years post-randomization
+    horizon = round(c(1, 3, 5)*365.25/30)
+  )
+
+colon_cancer_rmst_unadj
+
+# Survival Probability
+colon_cancer_sp_unadj <-
+  adjrct::survprob(
+    metadata = colon_cancer_meta_unadj,
+    # Survival at 1, 3, and 5-years post-randomization
+    horizon = round(c(1, 3, 5)*365.25/30)
+  )
+
+colon_cancer_sp_unadj
+```
+
+
+
+
+## Helper Functions
+
+A helper function can make it easier to extract and report results with `adjrct::survprob` and `adjrct::rmst`:
+
+```{r summary.rmst-summary.survprob}
+summary.rmst <-
+  summary.survprob <-
+  function(object, ...){
+    if(!inherits(x = object, what = c("rmst", "survprob"))){
+      stop("`object` must inherit class \"rmst\" or \"survprob\"")
+    }
+    estimand <-
+      switch(
+        EXPR = class(object),
+        "rmst" = "RMST:",
+        "survprob" = "Survival:"
+      )
+    time_horizon <- object$horizon
+    df_list <- list()
+    for(i in 1:length(time_horizon)){
+      df_list[[i]] <-
+        with(
+          data = object$estimates[[i]],
+          data.frame(
+            Estimand = paste(estimand, c("Arm 1", "Arm 0", "Difference")),
+            Estimate = c(arm1, arm0, theta),
+            Horizon = time_horizon[i],
+            SE = c(arm1.std.error, arm0.std.error, std.error),
+            LCL = c(arm1.conf.low, arm0.conf.low, theta.conf.low),
+            UCL = c(arm1.conf.high, arm0.conf.high, theta.conf.high)
+          )
+        )
+    }
+    return(do.call(what = rbind, args = df_list))
+  }
+```
+
+
+
+
+## Unadjusted RMST and Survival
+
+Performing a covariate-adjusted analysis involves adding covariates to the outcome and treatment assignment formulas in `adjrct::survrct()`:
+
+```{r colon-cancer-metadata-adjusted}
+colon_cancer_meta_adj <-
+  adjrct::survrct(
+    outcome.formula = 
+      survival::Surv(time = time_to_death, event = event_death) ~
+      age_bl + sex + obstruction_bl + organ_adherence_bl +
+      positive_nodes_bl + differentiation_bl + local_spread_bl +
+      time_surgery_registration_bl,
+    trt.formula = tx ~ 
+      age_bl + sex + obstruction_bl + organ_adherence_bl +
+      positive_nodes_bl + differentiation_bl + local_spread_bl +
+      time_surgery_registration_bl,
+    data = colon_cancer_active_pool,
+    coarsen = 30
+  )
+```
+
+The syntax for `adjrct::rmst` and `adjrct::survprob` are identical to the unadjusted analysis:
+
+```{r colon-cancer-rmst-sp-adjusted, results = "markup"}
+colon_cancer_rmst_adj <-
+  adjrct::rmst(
+    metadata = colon_cancer_meta_adj,
+    horizon = round(c(1, 3, 5)*365.25/30)
+  )
+
+summary(colon_cancer_rmst_adj)
+
+colon_cancer_sp_adj <-
+  adjrct::survprob(
+    metadata = colon_cancer_meta_adj,
+    horizon = round(c(1, 3, 5)*365.25/30)
+  )
+
+summary(colon_cancer_sp_adj)
+```
+
+
+## Precision Gain: SP + RMST
+
+The precision gain from covariate adjustment can be estimated by retrieving the standard errors from results:
+
+```{r colon-cancer-adjrct-gain, results = "markup"}
+colon_cancer_rmst_gain <-
+  1 - (colon_cancer_rmst_adj$estimates[[3]]$std.error/
+         colon_cancer_rmst_unadj$estimates[[3]]$std.error)^2
+
+colon_cancer_rmst_gain
+
+colon_cancer_sp_gain <-
+  1 - (colon_cancer_sp_adj$estimates[[3]]$std.error/
+         colon_cancer_sp_unadj$estimates[[3]]$std.error)^2
+
+colon_cancer_sp_gain
+```
+
+:::
